@@ -1,27 +1,63 @@
 "use client";
 import axios from 'axios';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 export default function Home() {
   const [images, setImages] = useState<Array<{
     id: string;
     download_url: string;
     author: string;
-  }>>([]);
+  }>>([]); // 存储图片数据
+  const [page, setPage] = useState<number>(1); // 当前页码
+  const [loading, setLoading] = useState<boolean>(false); // 加载状态
+  const loaderRef = useRef(null); // 用于观察的 DOM 元素
 
+  // 获取图片的函数
+  const fetchImages = async (page: number) => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`https://picsum.photos/v2/list?page=${page}&limit=10`);
+      setImages((prevImages) => [...prevImages, ...response.data]); // 追加新图片
+    } catch (error) {
+      console.error('Error fetching images:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 初始化加载第一页图片
   useEffect(() => {
-    // 获取图片的函数
-    const fetchImages = async () => {
-      try {
-        const response = await axios.get('https://picsum.photos/v2/list?page=1&limit=10');
-        setImages(response.data);
-      } catch (error) {
-        console.error('Error fetching images:', error);
+    fetchImages(page);
+  }, []);
+
+  // 监听滚动到底部
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loading) {
+          setPage((prevPage) => prevPage + 1); // 加载下一页
+        }
+      },
+      { threshold: 1.0 } // 当 loader 完全进入视口时触发
+    );
+
+    if (loaderRef.current) {
+      observer.observe(loaderRef.current);
+    }
+
+    return () => {
+      if (loaderRef.current) {
+        observer.unobserve(loaderRef.current);
       }
     };
+  }, [loading]);
 
-    fetchImages();
-  }, []);
+  // 当页码变化时加载更多图片
+  useEffect(() => {
+    if (page > 1) {
+      fetchImages(page);
+    }
+  }, [page]);
 
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
@@ -47,6 +83,10 @@ export default function Home() {
               </div>
             </div>
           ))}
+        </div>
+        {/* 加载更多指示器 */}
+        <div ref={loaderRef} className="text-center py-6">
+          {loading && <p className="text-gray-600">Loading more images...</p>}
         </div>
       </div>
     </div>
